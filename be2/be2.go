@@ -12,8 +12,21 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Host: %s\n", r.Host)
 	log.Printf("User-Agent: %s\n", r.Header.Get("User-Agent"))
 	log.Printf("Accept: %s\n", r.Header.Get("Accept"))
-
-	fmt.Fprintf(w, "Hello From Backend Server \n")
+	htmlContent := `
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Index Page</title>
+	</head>
+	<body>
+		Hello from the web server running on port 5434.
+	</body>
+	</html>`
+	// Set the Content-Type header to indicate that the response contains HTML
+	w.Header().Set("Content-Type", "text/html")
+	// Write the HTML content to the response writer
+	fmt.Fprintf(w, htmlContent)
 }
 
 func main() {
