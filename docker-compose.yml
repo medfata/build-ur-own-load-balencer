@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+  loadbalancer:
+    image: golang:1.20-alpine
+    working_dir: /app
+    volumes:
+      - ./lb:/app
+    command: sh -c "go build -o lb lb.go && ./lb"
+    ports:
+      - "5432:5432"
+    depends_on:
+      - backend1
+      - backend2
+
+  backend1:
+    image: golang:1.20-alpine
+    working_dir: /app
+    volumes:
+      - ./be1:/app
+    command: sh -c "go build -o be1 be1.go && ./be1"
+    ports:
+      - "5433:5433"
+  
+  backend2:
+    image: golang:1.20-alpine
+    working_dir: /app
+    volumes:
+      - ./be2:/app
+    command: sh -c "go build -o be2 be2.go && ./be2"
+    ports:
+      - "5434:5434"
