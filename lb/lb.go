@@ -56,8 +56,8 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/", handleRequest)
-	log.Println("Starting server on port 5432")
-	err := http.ListenAndServe(":5432", nil)
+	log.Println("Starting server on port 80")
+	err := http.ListenAndServe(":80", nil)
 	if err != nil {
 		fmt.Println(err)
 		log.Fatalf("Could not start server: %s\n", err)
