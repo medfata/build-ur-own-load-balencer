@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sync/atomic"
 )
 
 func logRequest(r *http.Request) {
@@ -16,10 +17,22 @@ func logRequest(r *http.Request) {
 	log.Printf("<------------------------------------>")
 }
 
+var (
+	backends = []string{
+		"http://backend1:5433",
+		"http://backend2:5434",
+	}
+	counter uint32
+)
+
 func handleRequest(w http.ResponseWriter, r *http.Request) {
 	logRequest(r)
+
+	// Round-robin load balancing
+	backend := getNextBackend()
+
 	// Construct a new request with the same method and URL as the incoming request
-	requestURL := fmt.Sprintf("http://%s:%d%s", "backend1", 5433, "/")
+	requestURL := fmt.Sprintf("%s%s", backend, r.URL.Path)
 	newReq, err := http.NewRequest(r.Method, requestURL, r.Body)
 	if err != nil {
 		log.Printf("Error while constructing new request: %v", err)
@@ -33,7 +46,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		newReq.Header[k] = v
 	}
 
-	// Send the new request to the destination server with port 5433
+	// Send the new request to the destination server
 	resp, err := http.DefaultClient.Do(newReq)
 	if err != nil {
 		log.Printf("Error while sending the request to the destination: %v", err)
@@ -45,13 +58,18 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	// Copy the response from the destination server to the outgoing response
 	respBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error while copyin the response from the destination server: %v", err)
+		log.Printf("Error while copying the response from the destination server: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(resp.StatusCode)
 	w.Write(respBytes)
+}
+
+func getNextBackend() string {
+	idx := atomic.AddUint32(&counter, 1)
+	return backends[idx%uint32(len(backends))]
 }
 
 func main() {
