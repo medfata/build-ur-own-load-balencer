@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sync/atomic"
+	"time"
 )
 
 func logRequest(r *http.Request) {
@@ -17,10 +18,15 @@ func logRequest(r *http.Request) {
 	log.Printf("<------------------------------------>")
 }
 
+type Backend struct {
+	URL  string
+	Down uint32
+}
+
 var (
-	backends = []string{
-		"http://backend1:5433",
-		"http://backend2:5434",
+	backends = []Backend{
+		{URL: "http://backend1:5433", Down: 1},
+		{URL: "http://backend2:5434", Down: 1},
 	}
 	counter uint32
 )
@@ -29,10 +35,13 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	logRequest(r)
 
 	// Round-robin load balancing
-	backend := getNextBackend()
-
+	backendUrl, err := getNextBackend()
+	if err != nil {
+		http.Error(w, "No available backends", http.StatusServiceUnavailable)
+		return
+	}
 	// Construct a new request with the same method and URL as the incoming request
-	requestURL := fmt.Sprintf("%s%s", backend, r.URL.Path)
+	requestURL := fmt.Sprintf("%s%s", backendUrl, r.URL.Path)
 	newReq, err := http.NewRequest(r.Method, requestURL, r.Body)
 	if err != nil {
 		log.Printf("Error while constructing new request: %v", err)
@@ -67,12 +76,48 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	w.Write(respBytes)
 }
 
-func getNextBackend() string {
+func getNextBackend() (string, error) {
+	// Filter out backends that are down
+	availableBackends := make([]Backend, 0, len(backends))
+	for _, backend := range backends {
+		if backend.Down == 0 {
+			availableBackends = append(availableBackends, backend)
+		}
+	}
+
+	// Check if there are any available backends
+	if len(availableBackends) == 0 {
+		return "", fmt.Errorf("no available backends")
+	}
+
+	// Select the next backend using the round-robin algorithm
 	idx := atomic.AddUint32(&counter, 1)
-	return backends[idx%uint32(len(backends))]
+	return availableBackends[idx%uint32(len(availableBackends))].URL, nil
+}
+
+func checkBackendsHealth(period int32) {
+	for {
+		time.Sleep(time.Duration(period) * time.Second)
+
+		for i := range backends {
+			go func(backend *Backend) {
+				resp, err := http.Get(backend.URL + "/health-check")
+				if err != nil || resp.StatusCode != http.StatusOK {
+					if backend.Down == 1 {
+						atomic.StoreUint32((*uint32)(&backend.Down), 1) // Mark as down
+					}
+				} else {
+					if backend.Down == 1 {
+						atomic.StoreUint32((*uint32)(&backend.Down), 0) // Mark as up
+					}
+				}
+			}(&backends[i])
+		}
+	}
 }
 
 func main() {
+	go checkBackendsHealth(10)
 	http.HandleFunc("/", handleRequest)
 	log.Println("Starting server on port 80")
 	err := http.ListenAndServe(":80", nil)

@@ -29,8 +29,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, htmlContent)
 }
 
+func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "OK")
+}
+
 func main() {
 	http.HandleFunc("/", handler)
+	http.HandleFunc("/health-check", healthCheckHandler)
 	log.Println("Starting backeend server on port 5433")
 	err := http.ListenAndServe(":5433", nil)
 	if err != nil {
