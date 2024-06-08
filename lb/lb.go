@@ -25,8 +25,8 @@ type Backend struct {
 
 var (
 	backends = []Backend{
-		{URL: "http://backend1:5433", Down: 1},
-		{URL: "http://backend2:5434", Down: 1},
+		{URL: "http://backend1:5433", Down: 0},
+		{URL: "http://backend2:5434", Down: 0},
 	}
 	counter uint32
 )
@@ -97,20 +97,23 @@ func getNextBackend() (string, error) {
 
 func checkBackendsHealth(period int32) {
 	for {
+		fmt.Printf("backends status: %v\n", backends)
 		time.Sleep(time.Duration(period) * time.Second)
-
 		for i := range backends {
 			go func(backend *Backend) {
 				resp, err := http.Get(backend.URL + "/health-check")
 				if err != nil || resp.StatusCode != http.StatusOK {
-					if backend.Down == 1 {
+					//fmt.Printf("health check => err: %v / url: %v\n", err, backend.URL)
+					if backend.Down == 0 {
 						atomic.StoreUint32((*uint32)(&backend.Down), 1) // Mark as down
 					}
 				} else {
+					//fmt.Printf("health check => reps: %v / url: %v\n", resp.StatusCode, backend.URL)
 					if backend.Down == 1 {
 						atomic.StoreUint32((*uint32)(&backend.Down), 0) // Mark as up
 					}
 				}
+				fmt.Printf("backend after health check: %v\n", backend)
 			}(&backends[i])
 		}
 	}
