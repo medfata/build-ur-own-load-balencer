@@ -103,17 +103,16 @@ func checkBackendsHealth(period int32) {
 			go func(backend *Backend) {
 				resp, err := http.Get(backend.URL + "/health-check")
 				if err != nil || resp.StatusCode != http.StatusOK {
-					//fmt.Printf("health check => err: %v / url: %v\n", err, backend.URL)
+					fmt.Printf("health check => err: %v / url: %v\n", err, backend.URL)
 					if backend.Down == 0 {
 						atomic.StoreUint32((*uint32)(&backend.Down), 1) // Mark as down
 					}
 				} else {
-					//fmt.Printf("health check => reps: %v / url: %v\n", resp.StatusCode, backend.URL)
+					fmt.Printf("health check => reps: %v / url: %v\n", resp.StatusCode, backend.URL)
 					if backend.Down == 1 {
 						atomic.StoreUint32((*uint32)(&backend.Down), 0) // Mark as up
 					}
 				}
-				fmt.Printf("backend after health check: %v\n", backend)
 			}(&backends[i])
 		}
 	}
